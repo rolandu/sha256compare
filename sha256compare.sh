@@ -51,8 +51,20 @@ TMP2=$(mktemp)
 trap "rm -f $TMP1 $TMP2" EXIT
 
 # Generate sha256sum results with only relative filenames
-find "$DIR1" -type f -name "$PATTERN" -exec sh -c 'file="{}"; sha256sum "$file" | { read sum filefull; file="${filefull#'"$DIR1"'}"; printf "%s %s\n" $sum "$file"; }' \; | sort > "$TMP1"
-find "$DIR2" -type f -name "$PATTERN" -exec sh -c 'file="{}"; sha256sum "$file" | { read sum filefull; file="${filefull#'"$DIR2"'}"; printf "%s %s\n" $sum "$file"; }' \; | sort > "$TMP2"
+find "$DIR1" -type f -name "$PATTERN" -print0 | while IFS= read -r -d '' file; do
+    sum=$(sha256sum "$file" | cut -d' ' -f1)
+    relpath="${file#$DIR1}"
+    printf "%s %s\n" "$sum" "$relpath" >> "$TMP1"
+done
+
+find "$DIR2" -type f -name "$PATTERN" -print0 | while IFS= read -r -d '' file; do
+    sum=$(sha256sum "$file" | cut -d' ' -f1)
+    relpath="${file#$DIR2}"
+    printf "%s %s\n" "$sum" "$relpath" >> "$TMP2"
+done
+
+sort "$TMP1" -o "$TMP1"
+sort "$TMP2" -o "$TMP2"
 
 # Compare the results
 if diff "$TMP1" "$TMP2" > /dev/null; then
